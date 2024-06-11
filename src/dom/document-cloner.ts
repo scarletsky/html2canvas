@@ -478,9 +478,20 @@ export class DocumentCloner {
         return anonymousReplacedElement;
     }
 
-    static destroy(container: HTMLIFrameElement): boolean {
-        if (container.parentNode) {
-            container.parentNode.removeChild(container);
+    static destroy(iframeElement: HTMLIFrameElement): boolean {
+        const iframeWindow = iframeElement.contentWindow;
+
+        iframeElement.src = 'about:blank';
+
+        if (iframeWindow) {
+            iframeWindow.document.open();
+            iframeWindow.document.write('');
+            iframeWindow.document.clear();
+            iframeWindow.close();
+        }
+
+        if (iframeElement.parentNode) {
+            iframeElement.parentNode.removeChild(iframeElement);
             return true;
         }
         return false;
