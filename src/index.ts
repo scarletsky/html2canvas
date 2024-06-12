@@ -129,7 +129,10 @@ export const renderElement = async (element: HTMLElement, opts: Partial<Options>
     return canvas;
 };
 
-export const renderElementInIFrame = async (element: HTMLElement, opts: Partial<Options>): Promise<HTMLCanvasElement> => {
+export const renderElementInIFrame = async (
+    element: HTMLElement,
+    opts: Partial<Options>
+): Promise<HTMLCanvasElement> => {
     if (!element || typeof element !== 'object') {
         return Promise.reject('Invalid element provided as first argument');
     }
