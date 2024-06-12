@@ -56,3 +56,8 @@ export const parseDocumentSize = (document: Document): Bounds => {
 
     return new Bounds(0, 0, width, height);
 };
+
+export const parseElementSize = (element: HTMLElement): Bounds => {
+    const {width, height} = element.getBoundingClientRect();
+    return new Bounds(0, 0, width, height);
+};
