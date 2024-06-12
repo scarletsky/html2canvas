@@ -14,10 +14,15 @@ export type Options = CloneOptions &
         backgroundColor: string | null;
         foreignObjectRendering: boolean;
         removeContainer?: boolean;
+        renderInIFrame?: boolean;
     };
 
 const html2canvas = (element: HTMLElement, options: Partial<Options> = {}): Promise<HTMLCanvasElement> => {
-    return renderElementInIFrame(element, options);
+    if (options.renderInIFrame) {
+        return renderElementInIFrame(element, options);
+    } else {
+        return renderElement(element, options);
+    }
 };
 
 export default html2canvas;
