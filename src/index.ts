@@ -86,7 +86,7 @@ export const renderElement = async (element: HTMLElement, opts: Partial<Options>
     let container;
     let width, height, left, top;
 
-    if (opts.renderInIFrame) {
+    if (opts.renderInIFrame !== false) {
         const cloneOptions: CloneConfigurations = {
             allowTaint: opts.allowTaint ?? false,
             onclone: opts.onclone,
@@ -147,7 +147,7 @@ export const renderElement = async (element: HTMLElement, opts: Partial<Options>
         canvas = await renderer.render(root);
     }
 
-    if (opts.renderInIFrame && container && (opts.removeContainer ?? true)) {
+    if (container && (opts.removeContainer ?? true)) {
         if (!DocumentCloner.destroy(container)) {
             context.logger.error(`Cannot detach cloned iframe as it is not in the DOM anymore`);
         }
