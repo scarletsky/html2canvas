@@ -107,8 +107,16 @@ export const renderElement = async (element: HTMLElement, opts: Partial<Options>
                 ? parseDocumentSize(targetElement.ownerDocument)
                 : parseBounds(context, targetElement));
     } else {
+        if (!element.parentElement) {
+            return Promise.reject(`Unable find parent element, may be it does not append to Document.`);
+        }
+
         targetElement = element;
-        ({width, height, left, top} = parseElementSize(element));
+        ({width, height, left, top} = parseElementSize(targetElement));
+
+        if (document.fonts && document.fonts.ready) {
+            await document.fonts.ready;
+        }
     }
 
     const backgroundColor = parseBackgroundColor(context, targetElement, opts.backgroundColor);
