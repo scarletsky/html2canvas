@@ -18,11 +18,7 @@ export type Options = CloneOptions &
     };
 
 const html2canvas = (element: HTMLElement, options: Partial<Options> = {}): Promise<HTMLCanvasElement> => {
-    if (options.renderInIFrame) {
-        return renderElementInIFrame(element, options);
-    } else {
-        return renderElement(element, options);
-    }
+    return renderElement(element, options);
 };
 
 export default html2canvas;
@@ -85,9 +81,37 @@ export const renderElement = async (element: HTMLElement, opts: Partial<Options>
         } scrolled to ${-windowBounds.left},${-windowBounds.top}`
     );
 
-    const {width, height, left, top} = parseElementSize(element);
+    let canvas;
+    let targetElement;
+    let container;
+    let width, height, left, top;
 
-    const backgroundColor = parseBackgroundColor(context, element, opts.backgroundColor);
+    if (opts.renderInIFrame) {
+        const cloneOptions: CloneConfigurations = {
+            allowTaint: opts.allowTaint ?? false,
+            onclone: opts.onclone,
+            ignoreElements: opts.ignoreElements,
+            inlineImages: foreignObjectRendering,
+            copyStyles: foreignObjectRendering
+        };
+
+        const documentCloner = new DocumentCloner(context, element, cloneOptions);
+        targetElement = documentCloner.clonedReferenceElement;
+        if (!targetElement) {
+            return Promise.reject(`Unable to find element in cloned iframe`);
+        }
+
+        container = await documentCloner.toIFrame(ownerDocument, windowBounds);
+        ({width, height, left, top} =
+            isBodyElement(targetElement) || isHTMLElement(targetElement)
+                ? parseDocumentSize(targetElement.ownerDocument)
+                : parseBounds(context, targetElement));
+    } else {
+        targetElement = element;
+        ({width, height, left, top} = parseElementSize(element));
+    }
+
+    const backgroundColor = parseBackgroundColor(context, targetElement, opts.backgroundColor);
 
     const renderOptions: RenderConfigurations = {
         canvas: opts.canvas,
@@ -99,19 +123,17 @@ export const renderElement = async (element: HTMLElement, opts: Partial<Options>
         height: opts.height ?? Math.ceil(height)
     };
 
-    let canvas;
-
     if (foreignObjectRendering) {
         context.logger.debug(`Document cloned, using foreign object rendering`);
         const renderer = new ForeignObjectRenderer(context, renderOptions);
-        canvas = await renderer.render(element);
+        canvas = await renderer.render(targetElement);
     } else {
         context.logger.debug(
             `Document cloned, element located at ${left},${top} with size ${width}x${height} using computed rendering`
         );
 
         context.logger.debug(`Starting DOM parsing`);
-        const root = parseTree(context, element);
+        const root = parseTree(context, targetElement);
 
         if (backgroundColor === root.styles.backgroundColor) {
             root.styles.backgroundColor = COLORS.TRANSPARENT;
@@ -125,127 +147,7 @@ export const renderElement = async (element: HTMLElement, opts: Partial<Options>
         canvas = await renderer.render(root);
     }
 
-    context.logger.debug(`Finished rendering`);
-    return canvas;
-};
-
-export const renderElementInIFrame = async (
-    element: HTMLElement,
-    opts: Partial<Options>
-): Promise<HTMLCanvasElement> => {
-    if (!element || typeof element !== 'object') {
-        return Promise.reject('Invalid element provided as first argument');
-    }
-
-    const ownerDocument = element.ownerDocument;
-
-    if (!ownerDocument) {
-        throw new Error(`Element is not attached to a Document`);
-    }
-
-    const defaultView = ownerDocument.defaultView;
-
-    if (!defaultView) {
-        throw new Error(`Document is not attached to a Window`);
-    }
-
-    const resourceOptions = {
-        allowTaint: opts.allowTaint ?? false,
-        imageTimeout: opts.imageTimeout ?? 15000,
-        proxy: opts.proxy,
-        useCORS: opts.useCORS ?? false
-    };
-
-    const contextOptions = {
-        logging: opts.logging ?? true,
-        cache: opts.cache,
-        ...resourceOptions
-    };
-
-    const windowOptions = {
-        windowWidth: opts.windowWidth ?? defaultView.innerWidth,
-        windowHeight: opts.windowHeight ?? defaultView.innerHeight,
-        scrollX: opts.scrollX ?? defaultView.pageXOffset,
-        scrollY: opts.scrollY ?? defaultView.pageYOffset
-    };
-
-    const windowBounds = new Bounds(
-        windowOptions.scrollX,
-        windowOptions.scrollY,
-        windowOptions.windowWidth,
-        windowOptions.windowHeight
-    );
-
-    const context = new Context(contextOptions, windowBounds);
-
-    const foreignObjectRendering = opts.foreignObjectRendering ?? false;
-
-    const cloneOptions: CloneConfigurations = {
-        allowTaint: opts.allowTaint ?? false,
-        onclone: opts.onclone,
-        ignoreElements: opts.ignoreElements,
-        inlineImages: foreignObjectRendering,
-        copyStyles: foreignObjectRendering
-    };
-
-    context.logger.debug(
-        `Starting document clone with size ${windowBounds.width}x${
-            windowBounds.height
-        } scrolled to ${-windowBounds.left},${-windowBounds.top}`
-    );
-
-    const documentCloner = new DocumentCloner(context, element, cloneOptions);
-    const clonedElement = documentCloner.clonedReferenceElement;
-    if (!clonedElement) {
-        return Promise.reject(`Unable to find element in cloned iframe`);
-    }
-
-    const container = await documentCloner.toIFrame(ownerDocument, windowBounds);
-
-    const {width, height, left, top} =
-        isBodyElement(clonedElement) || isHTMLElement(clonedElement)
-            ? parseDocumentSize(clonedElement.ownerDocument)
-            : parseBounds(context, clonedElement);
-
-    const backgroundColor = parseBackgroundColor(context, clonedElement, opts.backgroundColor);
-
-    const renderOptions: RenderConfigurations = {
-        canvas: opts.canvas,
-        backgroundColor,
-        scale: opts.scale ?? defaultView.devicePixelRatio ?? 1,
-        x: (opts.x ?? 0) + left,
-        y: (opts.y ?? 0) + top,
-        width: opts.width ?? Math.ceil(width),
-        height: opts.height ?? Math.ceil(height)
-    };
-
-    let canvas;
-
-    if (foreignObjectRendering) {
-        context.logger.debug(`Document cloned, using foreign object rendering`);
-        const renderer = new ForeignObjectRenderer(context, renderOptions);
-        canvas = await renderer.render(clonedElement);
-    } else {
-        context.logger.debug(
-            `Document cloned, element located at ${left},${top} with size ${width}x${height} using computed rendering`
-        );
-
-        context.logger.debug(`Starting DOM parsing`);
-        const root = parseTree(context, clonedElement);
-
-        if (backgroundColor === root.styles.backgroundColor) {
-            root.styles.backgroundColor = COLORS.TRANSPARENT;
-        }
-
-        context.logger.debug(
-            `Starting renderer for element at ${renderOptions.x},${renderOptions.y} with size ${renderOptions.width}x${renderOptions.height}`
-        );
-
-        const renderer = new CanvasRenderer(context, renderOptions);
-        canvas = await renderer.render(root);
-    }
-
-    if (opts.removeContainer ?? true) {
+    if (opts.renderInIFrame && container && (opts.removeContainer ?? true)) {
         if (!DocumentCloner.destroy(container)) {
             context.logger.error(`Cannot detach cloned iframe as it is not in the DOM anymore`);
         }
